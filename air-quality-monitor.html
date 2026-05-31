@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="An interactive, high-fidelity real-time air quality monitoring simulation. Learn about the MQ-135 gas sensor and Arduino-based environmental systems.">
+<title>Arduino Air Quality Monitor — EVS Project</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+:root{
+  --g1:#0a1a0a;--g2:#0d2b0d;--g3:#1a4a1a;--g4:#2d7a2d;--g5:#3da83d;--g6:#5ec95e;--g7:#90e090;--g8:#c5f5c5;--g9:#eafaea;
+  --w:#ffffff;--wt:rgba(255,255,255,0.92);--wm:rgba(255,255,255,0.6);--wd:rgba(255,255,255,0.15);
+  --alert:#ff4444;--warn:#ffaa00;--safe:#3da83d;
+  --font:'Outfit',sans-serif;--mono:'Space Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--g1);color:var(--wt);font-family:var(--font);overflow-x:hidden;cursor:default}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;background:rgba(10,26,10,0.85);backdrop-filter:blur(12px);border-bottom:1px solid rgba(93,201,93,0.15)}
+.nav-logo{font-size:1rem;font-weight:700;color:var(--g6);letter-spacing:0.05em}
+.nav-links{display:flex;gap:1.5rem;list-style:none}
+.nav-links a{color:var(--wm);text-decoration:none;font-size:0.8rem;font-weight:500;transition:color 0.2s;letter-spacing:0.05em}
+.nav-links a:hover{color:var(--g6)}
+
+/* HERO */
+#hero{
+  height:100vh;
+  position:relative;
+  display:flex;
+  align-items:center;
+  overflow:hidden;
+  background: radial-gradient(circle at 80% 20%, rgba(94,201,94,0.12) 0%, rgba(10,26,10,1) 60%),
+              radial-gradient(circle at 20% 80%, rgba(13,43,13,0.4) 0%, rgba(10,26,10,1) 80%);
+  background-size: 200% 200%;
+  animation: heroGlow 15s ease infinite;
+}
+@keyframes heroGlow {
+  0% { background-position: 0% 50% }
+  50% { background-position: 100% 50% }
+  100% { background-position: 0% 50% }
+}
+.hero-content{position:relative;z-index:10;padding:0 6vw;max-width:700px}
+.hero-tag{display:inline-block;background:rgba(93,201,93,0.15);border:1px solid rgba(93,201,93,0.4);color:var(--g6);font-size:0.75rem;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;padding:0.4rem 1rem;border-radius:2rem;margin-bottom:1.5rem}
+.hero-title{font-size:clamp(2.5rem,6vw,5rem);font-weight:900;line-height:1.05;margin-bottom:1.2rem}
+.hero-title span{color:var(--g6)}
+.hero-sub{color:var(--wm);font-size:1.1rem;line-height:1.7;margin-bottom:2rem;max-width:520px}
+.hero-team{display:flex;flex-wrap:wrap;gap:0.5rem}
+.team-pill{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:0.3rem 0.8rem;border-radius:2rem;font-size:0.75rem;color:var(--wm)}
+.scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.5rem;color:var(--wm);font-size:0.75rem;letter-spacing:0.1em;animation:bounce 2s infinite}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-8px)}}
+.scroll-arrow{width:1px;height:40px;background:linear-gradient(to bottom,transparent,var(--g6));position:relative}
+
+/* SECTIONS */
+section{padding:6rem 6vw;position:relative}
+.section-label{font-size:0.72rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--g5);margin-bottom:0.8rem}
+.section-title{font-size:clamp(2rem,4vw,3rem);font-weight:800;line-height:1.1;margin-bottom:1.5rem}
+.section-title span{color:var(--g6)}
+.section-body{color:var(--wm);font-size:1rem;line-height:1.8;max-width:700px}
+
+/* INTRO */
+#intro{background:linear-gradient(180deg,var(--g1) 0%,var(--g2) 100%)}
+.intro-grid{display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center}
+.stat-cards{display:grid;gap:1rem}
+.stat-card{background:rgba(255,255,255,0.04);border:1px solid rgba(93,201,93,0.2);border-radius:1rem;padding:1.5rem;transition:transform 0.3s,border-color 0.3s}
+.stat-card:hover{transform:translateY(-4px);border-color:var(--g5)}
+.stat-num{font-size:2.5rem;font-weight:900;color:var(--g6);line-height:1}
+.stat-desc{font-size:0.85rem;color:var(--wm);margin-top:0.3rem}
+
+/* OBJECTIVES */
+#objectives{background:var(--g2)}
+.obj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.2rem;margin-top:3rem}
+.obj-card{background:rgba(255,255,255,0.03);border:1px solid rgba(93,201,93,0.15);border-radius:1rem;padding:1.5rem;opacity:0;transform:translateY(30px);transition:opacity 0.6s,transform 0.6s,border-color 0.3s}
+.obj-card:hover{border-color:var(--g5);background:rgba(93,201,93,0.05)}
+.obj-card.visible{opacity:1;transform:translateY(0)}
+.obj-num{font-size:2rem;font-weight:900;color:var(--g5);opacity:0.4;line-height:1}
+.obj-text{font-size:0.9rem;color:var(--wm);line-height:1.6;margin-top:0.5rem}
+
+/* PROBLEM */
+#problem{background:linear-gradient(180deg,var(--g2) 0%,var(--g1) 100%)}
+.problem-vars{display:flex;flex-wrap:wrap;gap:0.8rem;margin:2rem 0}
+.var-pill{background:rgba(93,201,93,0.1);border:1px solid rgba(93,201,93,0.3);color:var(--g7);padding:0.4rem 1rem;border-radius:2rem;font-size:0.85rem;font-weight:500}
+.questions{display:grid;gap:0.8rem;margin-top:1.5rem}
+.q-item{background:rgba(255,255,255,0.03);border-left:3px solid var(--g5);padding:0.8rem 1.2rem;border-radius:0 0.5rem 0.5rem 0;font-size:0.9rem;color:var(--wm)}
+
+/* THEORY */
+#theory{background:var(--g1)}
+.theory-tabs{display:flex;gap:0.5rem;margin-bottom:2rem;flex-wrap:wrap}
+.theory-tab{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--wm);padding:0.5rem 1.2rem;border-radius:2rem;font-size:0.85rem;cursor:pointer;transition:all 0.2s;font-family:var(--font)}
+.theory-tab.active{background:var(--g5);color:var(--g1);border-color:var(--g5);font-weight:700}
+.theory-panel{display:none;animation:fadeIn 0.3s}
+.theory-panel.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.formula-box{background:rgba(93,201,93,0.08);border:1px solid rgba(93,201,93,0.25);border-radius:0.75rem;padding:1.2rem 1.5rem;margin-top:1rem;font-family:var(--mono);font-size:0.9rem;color:var(--g7)}
+
+/* MATERIALS */
+#materials{background:var(--g2)}
+.comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:1rem;margin-top:2rem}
+.comp-card{background:rgba(255,255,255,0.04);border:1px solid rgba(93,201,93,0.15);border-radius:1rem;padding:1.2rem;text-align:center;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden}
+.comp-card:hover, .comp-card.selected{border-color:var(--g5);background:rgba(93,201,93,0.08);transform:translateY(-4px)}
+.comp-card:focus-visible{outline:2px solid var(--g5);outline-offset:2px}
+.comp-icon{font-size:2.2rem;margin-bottom:0.6rem;display:block}
+.comp-name{font-size:0.85rem;font-weight:600;color:var(--wt)}
+.comp-spec{font-size:0.72rem;color:var(--wm);margin-top:0.2rem}
+.comp-detail{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(13,43,13,0.96);backdrop-filter:blur(20px);border:1px solid var(--g5);border-radius:1.5rem;padding:2rem;z-index:1001;max-width:550px;width:90%;box-shadow:0 30px 80px rgba(0,0,0,0.8);display:none}
+.comp-detail.show{display:block;animation:modalScaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)}
+@keyframes modalScaleUp{from{opacity:0;transform:translate(-50%,-45%) scale(0.95)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.comp-detail-title{font-weight:800;font-size:1.4rem;color:var(--g6);margin-bottom:1rem}
+.comp-detail-close{position:absolute;top:1rem;right:1.2rem;background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--wm);transition:color 0.2s}
+.comp-detail-close:hover{color:var(--g6)}
+.comp-3d-wrapper{width:100%;height:280px;margin-bottom:1.2rem;border-radius:0.75rem;overflow:hidden;border:1px solid rgba(93,201,93,0.3);background:#050f05}
+.sketchfab-embed{width:100%;height:100%;border:0}
+
+/* CIRCUIT */
+#circuit{background:var(--g1);min-height:100vh}
+#circuit-canvas-wrap{position:relative;height:500px;border-radius:1.5rem;overflow:hidden;border:1px solid rgba(93,201,93,0.25);margin-top:2rem;background:rgba(0,12,0,0.8)}
+#circuit-3d{width:100%;height:100%;display:block;cursor:grab}
+#circuit-3d:active{cursor:grabbing}
+.wire-info{background:rgba(255,255,255,0.04);border:1px solid rgba(93,201,93,0.2);border-radius:0.75rem;padding:1rem 1.5rem;margin-top:1.5rem;font-size:0.88rem;color:var(--wm);min-height:60px;transition:background-color 0.3s}
+.circuit-legend{display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1.5rem}
+.legend-item{display:flex;align-items:center;gap:0.5rem;font-size:0.82rem;color:var(--wm)}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.pin-table{width:100%;border-collapse:collapse;margin-top:1.5rem;font-size:0.85rem}
+.pin-table th{background:rgba(93,201,93,0.1);color:var(--g6);padding:0.6rem 1rem;text-align:left;font-weight:600;border-bottom:1px solid rgba(93,201,93,0.2)}
+.pin-table td{padding:0.6rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:var(--wm)}
+.pin-table tr:hover td{background:rgba(93,201,93,0.05)}
+
+/* METHODOLOGY */
+#methodology{background:var(--g2)}
+.flow-steps{position:relative;margin-top:3rem}
+.flow-steps::before{content:'';position:absolute;left:24px;top:0;bottom:0;width:2px;background:linear-gradient(to bottom,var(--g5),transparent)}
+.flow-step{display:flex;gap:1.5rem;margin-bottom:2rem;opacity:0;transform:translateX(-20px);transition:all 0.5s}
+.flow-step.visible{opacity:1;transform:translateX(0)}
+.flow-dot{width:48px;height:48px;border-radius:50%;background:var(--g4);border:2px solid var(--g5);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;color:var(--g7);font-size:1rem}
+.flow-content{flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(93,201,93,0.15);border-radius:1rem;padding:1.2rem 1.5rem}
+.flow-title{font-weight:700;color:var(--wt);margin-bottom:0.4rem}
+.flow-desc{font-size:0.88rem;color:var(--wm);line-height:1.6}
+
+/* CODE */
+.code-block{background:rgba(0,10,0,0.85);border:1px solid rgba(93,201,93,0.25);border-radius:1rem;padding:1.5rem;margin-top:1.5rem;font-family:var(--mono);font-size:0.78rem;line-height:1.8;overflow-x:auto;color:var(--g8);max-height:450px;overflow-y:auto;white-space:pre-wrap}
+.code-block .kw{color:#7ec8e3}.code-block .fn{color:var(--g6)}.code-block .cm{color:#556b55}.code-block .str{color:#f0c87a}.code-block .num{color:#ff9d6c}
+
+/* OBSERVATIONS */
+#observations{background:var(--g1)}
+.obs-table-wrap{overflow-x:auto;margin-top:2rem}
+.obs-table{width:100%;border-collapse:collapse;font-size:0.88rem}
+.obs-table th{background:rgba(93,201,93,0.12);color:var(--g6);padding:0.8rem 1rem;text-align:left;border-bottom:2px solid rgba(93,201,93,0.3);font-weight:700;font-size:0.8rem;letter-spacing:0.05em;text-transform:uppercase}
+.obs-table td{padding:0.8rem 1rem;border-bottom:1px solid rgba(255,255,255,0.06);color:var(--wm)}
+.obs-table tr:hover td{background:rgba(93,201,93,0.04)}
+.badge{padding:0.25rem 0.7rem;border-radius:2rem;font-size:0.75rem;font-weight:600}
+.badge-safe{background:rgba(61,168,61,0.15);color:var(--g6);border:1px solid rgba(61,168,61,0.3)}
+.badge-alert{background:rgba(255,68,68,0.15);color:#ff8888;border:1px solid rgba(255,68,68,0.3)}
+.chart-wrap{margin-top:2.5rem;background:rgba(0,15,0,0.6);border:1px solid rgba(93,201,93,0.2);border-radius:1rem;padding:1.5rem}
+
+/* LIVE DEMO */
+#live-demo{background:linear-gradient(135deg,var(--g2) 0%,var(--g1) 100%);position:relative;overflow:hidden}
+.demo-panel{background:rgba(0,20,0,0.7);border:1px solid rgba(93,201,93,0.3);border-radius:1.5rem;padding:2rem;max-width:800px;margin:2rem auto 0}
+.lcd-screen{background:#001a00;border:3px solid #2a4a2a;border-radius:0.5rem;padding:1rem 1.5rem;font-family:var(--mono);margin-bottom:1.5rem;box-shadow:inset 0 0 20px rgba(0,80,0,0.5)}
+.lcd-row{font-size:1rem;color:#00ff88;letter-spacing:0.1em;height:1.6rem;overflow:hidden}
+.lcd-cursor{animation:blink 1s step-end infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.demo-controls{display:flex;flex-wrap:wrap;gap:0.8rem;margin-bottom:1.5rem}
+.demo-btn{background:rgba(255,255,255,0.05);border:1px solid rgba(93,201,93,0.3);color:var(--g7);padding:0.6rem 1.2rem;border-radius:2rem;cursor:pointer;font-size:0.85rem;font-family:var(--font);transition:all 0.2s;font-weight:500}
+.demo-btn:hover{background:rgba(93,201,93,0.15);border-color:var(--g5)}
+.demo-btn.active{background:var(--g5);color:var(--g1);border-color:var(--g5);font-weight:700}
+.demo-meter{position:relative;height:80px;background:rgba(0,0,0,0.4);border-radius:0.75rem;overflow:hidden;margin-bottom:1rem}
+.meter-bar{height:100%;transition:width 0.5s cubic-bezier(0.4,0,0.2,1),background 0.5s;display:flex;align-items:center;padding-left:1rem}
+.meter-val{font-size:1.5rem;font-weight:900;font-family:var(--mono);color:var(--g1)}
+.meter-label{font-size:0.75rem;font-weight:600}
+.threshold-line{position:absolute;top:0;bottom:0;width:2px;background:rgba(255,170,0,0.8);left:39.1%}
+.threshold-label{position:absolute;top:8px;left:40%;font-size:0.7rem;color:var(--warn);font-weight:600}
+.indicators{display:flex;gap:1.5rem;justify-content:center;align-items:center}
+.led-indicator{width:40px;height:40px;border-radius:50%;background:rgba(255,68,68,0.1);border:2px solid rgba(255,68,68,0.2);transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:rgba(255,68,68,0.4);font-weight:700}
+.led-indicator.on{background:rgba(255,68,68,0.9);border-color:#ff4444;color:#fff;box-shadow:0 0 20px #ff4444}
+.buzzer-indicator{width:40px;height:40px;border-radius:50%;background:rgba(255,170,0,0.1);border:2px solid rgba(255,170,0,0.2);transition:all 0.3s;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.buzzer-indicator.on{background:rgba(255,170,0,0.3);border-color:var(--warn);box-shadow:0 0 20px var(--warn);animation:buzz 0.1s infinite}
+@keyframes buzz{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.serial-log{background:rgba(0,0,0,0.5);border:1px solid rgba(93,201,93,0.15);border-radius:0.75rem;padding:1rem;height:150px;overflow-y:auto;font-family:var(--mono);font-size:0.75rem;color:var(--g7);margin-top:1rem}
+.log-line{margin-bottom:0.2rem}.log-alert{color:#ff8888}.log-clear{color:#88ff88}
+
+/* DISCUSSION */
+#discussion{background:var(--g2)}
+.disc-grid{display:grid;gap:1rem;margin-top:2rem}
+.disc-card{background:rgba(255,255,255,0.03);border:1px solid rgba(93,201,93,0.15);border-radius:1rem;padding:1.2rem 1.5rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;align-items:start}
+.disc-label{font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--g5);margin-bottom:0.3rem}
+.disc-text{font-size:0.88rem;color:var(--wm);line-height:1.5}
+@media(max-width:600px){.disc-card{grid-template-columns:1fr}}
+
+/* EVS */
+#evs{background:var(--g1)}
+.evs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.2rem;margin-top:2rem}
+.evs-card{background:rgba(255,255,255,0.03);border:1px solid rgba(93,201,93,0.15);border-radius:1rem;padding:1.5rem;transition:all 0.3s}
+.evs-card:hover{border-color:var(--g5);transform:translateY(-4px)}
+.evs-icon{font-size:1.8rem;margin-bottom:0.8rem}
+.evs-title{font-weight:700;color:var(--wt);margin-bottom:0.5rem;font-size:0.95rem}
+.evs-desc{font-size:0.85rem;color:var(--wm);line-height:1.6}
+
+/* CONCLUSION */
+#conclusion{background:var(--g2)}
+.concl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:2rem}
+.concl-card{background:rgba(93,201,93,0.06);border:1px solid rgba(93,201,93,0.25);border-radius:1rem;padding:1.3rem;text-align:center;transition:all 0.3s}
+.concl-card:hover{background:rgba(93,201,93,0.12)}
+.concl-icon{font-size:1.6rem;margin-bottom:0.6rem}
+.concl-text{font-size:0.88rem;color:var(--wm);line-height:1.5}
+
+/* FUTURE */
+#future{background:var(--g1)}
+.timeline{position:relative;margin-top:3rem}
+.tl-item{display:flex;gap:1.5rem;margin-bottom:1.5rem;opacity:0;transform:translateX(30px);transition:all 0.5s}
+.tl-item.visible{opacity:1;transform:translateX(0)}
+.tl-dot{width:36px;height:36px;border-radius:50%;border:2px solid var(--g5);background:var(--g4);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.9rem}
+.tl-text{font-size:0.9rem;color:var(--wm);line-height:1.6;padding-top:0.4rem}
+
+/* REFERENCES */
+#references{background:var(--g2)}
+.ref-list{counter-reset:ref-counter;margin-top:1.5rem;display:grid;gap:0.8rem}
+.ref-list li{position:relative;background:rgba(255,255,255,0.03);border-left:3px solid var(--g5);padding:0.7rem 1rem 0.7rem 2.5rem;border-radius:0 0.5rem 0.5rem 0;font-size:0.88rem;color:var(--wm);line-height:1.5;list-style:none}
+.ref-list li::before{counter-increment:ref-counter;content:counter(ref-counter) ".";position:absolute;left:0.8rem;color:var(--g6);font-weight:700}
+
+/* FOOTER */
+footer{background:var(--g1);border-top:1px solid rgba(93,201,93,0.15);padding:2rem 6vw;text-align:center;color:var(--wm);font-size:0.85rem}
+footer strong{color:var(--g6)}
+
+/* PARTICLES */
+.particle{position:absolute;border-radius:50%;pointer-events:none}
+
+/* AQI */
+.aqi-bar{height:20px;border-radius:10px;background:linear-gradient(to right,#00e400,#ffff00,#ff7e00,#ff0000,#99004c);position:relative;margin:1rem 0}
+.aqi-marker{position:absolute;top:-8px;width:4px;height:36px;background:white;border-radius:2px;transition:left 0.5s}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .intro-grid{grid-template-columns:1fr}
+  section{padding:4rem 5vw}
+  .disc-card{grid-template-columns:1fr}
+  nav{padding:0.8rem 1.2rem}
+  .nav-links{gap:0.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">🌿 AirGuard Arduino</div>
+  <ul class="nav-links">
+    <li><a href="#intro">Intro</a></li>
+    <li><a href="#circuit">Circuit</a></li>
+    <li><a href="#live-demo">Live Demo</a></li>
+    <li><a href="#observations">Results</a></li>
+    <li><a href="#future">Future</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-content">
+    <div class="hero-tag">EVS Project · 25CE101 · Jain University</div>
+    <h1 class="hero-title">Arduino-Based<br><span>Air Quality</span><br>Sensor</h1>
+    <p class="hero-sub">A real-time air quality monitoring system using the MQ-135 gas sensor and Arduino Uno R3 — built to detect, alert, and educate.</p>
+    <div class="hero-team">
+      <span class="team-pill">Rishikesh R Prasad</span>
+      <span class="team-pill">Nithin N</span>
+      <span class="team-pill">Susilkumar S</span>
+      <span class="team-pill">V Sreesharan</span>
+      <span class="team-pill">Manvith SP</span>
+      <span class="team-pill">Prajwal IR</span>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <span style="letter-spacing:0.15em">SCROLL</span>
+    <div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<!-- INTRO -->
+<section id="intro">
+  <div class="intro-grid">
+    <div>
+      <div class="section-label">01 — Introduction</div>
+      <h2 class="section-title">The Air We <span>Breathe</span> Is at Risk</h2>
+      <p class="section-body">Air pollution is one of the most pressing environmental challenges of the twenty-first century. Rapid industrialization, vehicular emissions, and domestic activities have led to the accumulation of harmful gases — including carbon dioxide, ammonia, benzene, nitrogen oxides, and volatile organic compounds — in the atmosphere, posing severe risks to human health and ecological balance.</p>
+      <p class="section-body" style="margin-top:1rem">Despite its severity, air quality monitoring remains largely inaccessible to the general public due to the high cost and complexity of professional monitoring equipment. This project bridges that gap with a low-cost Arduino-based prototype.</p>
+    </div>
+    <div>
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-num" id="counter1">0</div>
+          <div class="stat-desc">Million premature deaths per year from ambient air pollution (WHO, 2021)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">10-bit</div>
+          <div class="stat-desc">ADC resolution of Arduino Uno R3 — reading values from 0 to 1023</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="color:var(--warn)">400</div>
+          <div class="stat-desc">Alert threshold (ADC units) — above this, GAS DETECTED triggers</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OBJECTIVES -->
+<section id="objectives">
+  <div class="section-label">02 — Objectives</div>
+  <h2 class="section-title">What We Set <span>Out</span> to Do</h2>
+  <div class="obj-grid">
+    <div class="obj-card"><div class="obj-num">01</div><div class="obj-text">Understand the sources, types, and effects of air pollution as covered in Unit III of the EVS syllabus.</div></div>
+    <div class="obj-card"><div class="obj-num">02</div><div class="obj-text">Design and build a functional real-time air quality monitoring device using the MQ-135 sensor and Arduino Uno R3.</div></div>
+    <div class="obj-card"><div class="obj-num">03</div><div class="obj-text">Implement threshold-based alert logic using LED and buzzer outputs at ADC value 400.</div></div>
+    <div class="obj-card"><div class="obj-num">04</div><div class="obj-text">Display real-time gas concentration data on a 16×2 I2C LCD module at address 0x27.</div></div>
+    <div class="obj-card"><div class="obj-num">05</div><div class="obj-text">Transmit sensor data to a computer via serial communication at 9600 baud for logging and analysis.</div></div>
+    <div class="obj-card"><div class="obj-num">06</div><div class="obj-text">Connect classroom theory on air pollution with a practical, experiential engineering solution.</div></div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="section-label">03 — Problem Statement</div>
+  <h2 class="section-title">What We're <span>Measuring</span></h2>
+  <p class="section-body">A real-world indoor air environment is used as the observation domain. The MQ-135 sensor is exposed to various gas sources and its 10-bit ADC output (0–1023) is recorded and analyzed.</p>
+  <div class="problem-vars">
+    <span class="var-pill">📊 ADC Reading (0–1023)</span>
+    <span class="var-pill">🚨 Alert State (active/inactive)</span>
+    <span class="var-pill">🧪 Gas Source / Test Condition</span>
+  </div>
+  <div class="questions">
+    <div class="q-item"><strong style="color:var(--g6)">Q1.</strong> What is the baseline sensor reading in clean indoor air?</div>
+    <div class="q-item"><strong style="color:var(--g6)">Q2.</strong> At what threshold does the system reliably detect harmful gas levels?</div>
+    <div class="q-item"><strong style="color:var(--g6)">Q3.</strong> How quickly does the system respond to sudden changes in air quality?</div>
+    <div class="q-item"><strong style="color:var(--g6)">Q4.</strong> How do temperature and humidity affect sensor accuracy?</div>
+    <div class="q-item"><strong style="color:var(--g6)">Q5.</strong> How does ventilation restore the sensor reading to the safe range?</div>
+  </div>
+</section>
+
+<!-- THEORY -->
+<section id="theory">
+  <div class="section-label">04 — Background Theory</div>
+  <h2 class="section-title">The <span>Science</span> Behind It</h2>
+  <div class="theory-tabs">
+    <button class="theory-tab active" onclick="showTab('t-air', event)">Air Pollution</button>
+    <button class="theory-tab" onclick="showTab('t-mq135', event)">MQ-135 Sensor</button>
+    <button class="theory-tab" onclick="showTab('t-arduino', event)">Arduino Uno R3</button>
+    <button class="theory-tab" onclick="showTab('t-formulas', event)">Key Formulas</button>
+  </div>
+  <div id="t-air" class="theory-panel active">
+    <p class="section-body">Air pollution refers to the presence of substances in the atmosphere harmful to health, other living organisms, or the environment. Pollutants may be gaseous (CO₂, SO₂, NOₓ, ozone, VOCs) or particulate (PM2.5, PM10, dust, soot).</p>
+    <p class="section-body" style="margin-top:1rem"><strong style="color:var(--g6)">Primary pollutants</strong> are emitted directly from a source — carbon monoxide from vehicle exhaust. <strong style="color:var(--warn)">Secondary pollutants</strong> form through atmospheric chemical reactions — ground-level ozone forms when NOₓ and VOCs react in sunlight. Health effects range from respiratory irritation and cardiovascular disease to cancer and neurological damage.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1.5rem">
+      <span class="var-pill">CO₂</span><span class="var-pill">SO₂</span><span class="var-pill">NOₓ</span><span class="var-pill">PM2.5</span><span class="var-pill">PM10</span><span class="var-pill">Ozone</span><span class="var-pill">VOCs</span><span class="var-pill">Benzene</span>
+    </div>
+  </div>
+  <div id="t-mq135" class="theory-panel">
+    <p class="section-body">The MQ-135 is a metal oxide semiconductor (MOS) gas sensor by Hanwei Electronics. It operates on <strong style="color:var(--g6)">chemiresistance</strong>: the electrical resistance of a tin dioxide (SnO₂) sensing layer changes in the presence of reducing or oxidizing gases. A heating element raises the sensing layer to ~200°C.</p>
+    <p class="section-body" style="margin-top:1rem">The sensor outputs an analog voltage that <em>decreases</em> as gas concentration increases. This is read by Arduino's 10-bit ADC, producing values 0–1023. It is sensitive to NH₃, NOₓ, alcohol, benzene, smoke, and CO₂ — making it a broad-spectrum air quality indicator.</p>
+  </div>
+  <div id="t-arduino" class="theory-panel">
+    <p class="section-body">The Arduino Uno R3 is an open-source microcontroller board based on the Atmel ATmega328P. It features 14 digital I/O pins, 6 analog input pins (10-bit ADC), a 16 MHz clock, and USB connectivity for programming and serial communication.</p>
+    <p class="section-body" style="margin-top:1rem">It bridges the physical world and digital logic — reading analog sensor voltages, making threshold decisions, driving output devices (LED, buzzer, LCD), and communicating with a computer over serial at 9600 baud.</p>
+  </div>
+  <div id="t-formulas" class="theory-panel">
+    <div class="formula-box">
+      <div style="color:var(--g5);margin-bottom:0.5rem">// ADC Resolution Formula</div>
+      Voltage = (ADC Value / 1023) × V_ref
+      <br><br>
+      <div style="color:var(--g5);margin-bottom:0.5rem">// Standard Error of Sensor Readings</div>
+      SE = σ / √n
+      <br><br>
+      <div style="color:var(--g5);margin-bottom:0.5rem">// Threshold Logic</div>
+      if (gasValue > 400) → ALERT; else → SAFE
+    </div>
+  </div>
+</section>
+
+<!-- MATERIALS -->
+<section id="materials">
+  <div class="section-label">05 — Materials & Components</div>
+  <h2 class="section-title">The <span>Hardware</span> Arsenal</h2>
+  <p class="section-body">Click any component to see its interactive 3D model, specifications, and purpose in the circuit.</p>
+  <div class="comp-grid">
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('arduino')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('arduino')}"><span class="comp-icon">🔵</span><div class="comp-name">Arduino Uno R3</div><div class="comp-spec">ATmega328P · 5V</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('mq135')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('mq135')}"><span class="comp-icon">🟤</span><div class="comp-name">MQ-135 Sensor</div><div class="comp-spec">Analog · SnO₂ · 5V</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('lcd')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('lcd')}"><span class="comp-icon">🟩</span><div class="comp-name">16×2 I2C LCD</div><div class="comp-spec">PCF8574 · 0x27</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('led')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('led')}"><span class="comp-icon">🔴</span><div class="comp-name">LED (Red)</div><div class="comp-spec">5mm · 2V forward</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('buzzer')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('buzzer')}"><span class="comp-icon">🔔</span><div class="comp-name">Passive Buzzer</div><div class="comp-spec">5V · tone() compatible</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('resistor')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('resistor')}"><span class="comp-icon">⚡</span><div class="comp-name">Resistor 220Ω</div><div class="comp-spec">1/4W · current limit</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('breadboard')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('breadboard')}"><span class="comp-icon">🟫</span><div class="comp-name">Breadboard</div><div class="comp-spec">830 tie-point</div></div>
+    <div class="comp-card" role="button" tabindex="0" onclick="showComp('wires')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showComp('wires')}"><span class="comp-icon">🔗</span><div class="comp-name">Jumper Wires</div><div class="comp-spec">M-M · M-F · F-F</div></div>
+  </div>
+  <div class="comp-detail" id="comp-detail" role="dialog" aria-labelledby="cd-title">
+    <button class="comp-detail-close" onclick="closeComp()" aria-label="Close details">✕</button>
+    <div class="comp-detail-title" id="cd-title"></div>
+    <div id="cd-embed-container" class="comp-3d-wrapper"></div>
+    <div style="font-size:0.88rem;color:var(--wm);line-height:1.6" id="cd-body"></div>
+  </div>
+</section>
+
+<!-- CIRCUIT -->
+<section id="circuit">
+  <div class="section-label">06 — Circuit Design</div>
+  <h2 class="section-title">Interactive <span>3D Connected Circuit</span></h2>
+  <p class="section-body">Drag to rotate the circuit board in 3D. Click any component to highlight it and view its wiring details.</p>
+  
+  <div id="circuit-canvas-wrap">
+    <canvas id="circuit-3d"></canvas>
+  </div>
+  
+  <div class="wire-info" id="wire-info">💡 <strong>Getting Started</strong>: Click any component (like the Arduino, breadboard, LCD screen, LED, buzzer, or sensor) on the board above to see its connected pin description.</div>
+
+  <div class="circuit-legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#ff4444"></span> Power (5V)</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#333"></span> Ground (GND)</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#ffaa00"></span> Analog Signal</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#4488ff"></span> Digital Output</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#aa88ff"></span> I2C Data/Clock</span>
+  </div>
+  <table class="pin-table">
+    <thead><tr><th>Component</th><th>Component Pin</th><th>Arduino Pin</th><th>Wire Colour</th></tr></thead>
+    <tbody>
+      <tr><td>MQ-135 Sensor</td><td>AOUT</td><td>A1</td><td style="color:#ffaa00">■ Yellow (Analog)</td></tr>
+      <tr><td>MQ-135 Sensor</td><td>VCC</td><td>5V</td><td style="color:#ff4444">■ Red (Power)</td></tr>
+      <tr><td>MQ-135 Sensor</td><td>GND</td><td>GND</td><td style="color:#888">■ Black (Ground)</td></tr>
+      <tr><td>LED via 220Ω</td><td>Anode</td><td>D2</td><td style="color:#4488ff">■ Blue (Digital)</td></tr>
+      <tr><td>Passive Buzzer</td><td>Positive</td><td>D3</td><td style="color:#4488ff">■ Blue (Digital)</td></tr>
+      <tr><td>I2C LCD</td><td>SDA</td><td>A4 (SDA)</td><td style="color:#aa88ff">■ Purple (I2C)</td></tr>
+      <tr><td>I2C LCD</td><td>SCL</td><td>A5 (SCL)</td><td style="color:#aa88ff">■ Purple (I2C)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- METHODOLOGY -->
+<section id="methodology">
+  <div class="section-label">07 — Methodology</div>
+  <h2 class="section-title">How the <span>System Works</span></h2>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <div class="flow-dot">⚡</div>
+      <div class="flow-content"><div class="flow-title">Power On → Warmup Phase</div><div class="flow-desc">System displays "Warming up..." on LCD for 10 seconds while MQ-135 heating element reaches ~200°C operating temperature. Prevents false alerts from cold-start sensor drift.</div></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">📖</div>
+      <div class="flow-content"><div class="flow-title">Read Sensor (every 200ms)</div><div class="flow-desc">Arduino reads analog pin A1 from MQ-135. Produces integer 0–1023 via 10-bit ADC. Displays "Gas Level: [value]" on LCD row 0 and serial monitor.</div></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">🔍</div>
+      <div class="flow-content"><div class="flow-title">Threshold Check (> 400?)</div><div class="flow-desc">Comparator logic checks ADC value against threshold 400. Boolean flag <code style="color:var(--g6)">isAlerting</code> prevents unnecessary LCD rewrites — state changes only trigger once per event.</div></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">🚨</div>
+      <div class="flow-content"><div class="flow-title">Alert → LED on + Buzzer 1kHz</div><div class="flow-desc">When gasValue > 400: LED on pin D2 switches HIGH, tone(BUZZER_PIN, 1000) produces 1 kHz tone, LCD row 1 shows "GAS Detected!". isAlerting = true.</div></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">✅</div>
+      <div class="flow-content"><div class="flow-title">Clear → LED off + noTone()</div><div class="flow-desc">When gasValue drops ≤ 400: LED switches LOW, noTone() silences buzzer, LCD row 1 shows "Status: Safe". isAlerting = false.</div></div>
+    </div>
+  </div>
+  <div class="code-block">
+<span class="cm">// REAL-TIME AIR QUALITY MONITORING — ARDUINO CODE</span>
+<span class="kw">#include</span> <span class="str">&lt;Wire.h&gt;</span>
+<span class="kw">#include</span> <span class="str">&lt;LiquidCrystal_I2C.h&gt;</span>
+
+LiquidCrystal_I2C <span class="fn">lcd</span>(<span class="num">0x27</span>, <span class="num">16</span>, <span class="num">2</span>);
+
+<span class="kw">const int</span> GAS_SENSOR_PIN = A1;
+<span class="kw">const int</span> LED_PIN        = <span class="num">2</span>;
+<span class="kw">const int</span> BUZZER_PIN     = <span class="num">3</span>;
+<span class="kw">const int</span> THRESHOLD      = <span class="num">400</span>;
+<span class="kw">bool</span> isAlerting          = <span class="kw">false</span>;
+
+<span class="kw">void</span> <span class="fn">setup</span>() {
+  Serial.<span class="fn">begin</span>(<span class="num">9600</span>);
+  lcd.<span class="fn">init</span>(); lcd.<span class="fn">backlight</span>();
+  <span class="fn">pinMode</span>(LED_PIN, OUTPUT);
+  <span class="fn">pinMode</span>(BUZZER_PIN, OUTPUT);
+  lcd.<span class="fn">setCursor</span>(<span class="num">0</span>, <span class="num">0</span>);
+  lcd.<span class="fn">print</span>(<span class="str">"Warming up..."</span>);
+  <span class="fn">delay</span>(<span class="num">10000</span>);
+  lcd.<span class="fn">clear</span>();
+}
+
+<span class="kw">void</span> <span class="fn">loop</span>() {
+  <span class="kw">int</span> gasValue = <span class="fn">analogRead</span>(GAS_SENSOR_PIN);
+  lcd.<span class="fn">setCursor</span>(<span class="num">0</span>, <span class="num">0</span>);
+  lcd.<span class="fn">print</span>(<span class="str">"Gas Level: "</span>); lcd.<span class="fn">print</span>(gasValue); lcd.<span class="fn">print</span>(<span class="str">"    "</span>);
+
+  <span class="kw">if</span> (gasValue > THRESHOLD &amp;&amp; !isAlerting) {
+    <span class="fn">digitalWrite</span>(LED_PIN, HIGH);
+    <span class="fn">tone</span>(BUZZER_PIN, <span class="num">1000</span>);
+    lcd.<span class="fn">setCursor</span>(<span class="num">0</span>, <span class="num">1</span>);
+    lcd.<span class="fn">print</span>(<span class="str">"GAS Detected!   "</span>);
+    isAlerting = <span class="kw">true</span>;
+  } <span class="kw">else if</span> (gasValue &lt;= THRESHOLD &amp;&amp; isAlerting) {
+    <span class="fn">digitalWrite</span>(LED_PIN, LOW);
+    <span class="fn">noTone</span>(BUZZER_PIN);
+    lcd.<span class="fn">setCursor</span>(<span class="num">0</span>, <span class="num">1</span>);
+    lcd.<span class="fn">print</span>(<span class="str">"Status: Safe    "</span>);
+    isAlerting = <span class="kw">false</span>;
+  }
+  <span class="fn">delay</span>(<span class="num">200</span>);
+}
+  </div>
+</section>
+
+<!-- LIVE DEMO -->
+<section id="live-demo">
+  <div class="section-label">08 — Live Interactive Demo</div>
+  <h2 class="section-title">Simulate the <span>Sensor</span> in Action</h2>
+  <p class="section-body">Choose a test condition to simulate sensor readings. Watch the LCD, LED, and buzzer respond in real time.</p>
+  <div class="demo-panel">
+    <div class="demo-controls">
+      <button class="demo-btn active" onclick="setCondition('clean',120,'Normal indoor air',false, event)">🌿 Clean Air</button>
+      <button class="demo-btn" onclick="setCondition('smoke',330,'Near cooking smoke',false, event)">🍳 Cooking Smoke</button>
+      <button class="demo-btn" onclick="setCondition('alcohol',550,'Alcohol/sanitizer spray',true, event)">🧴 Sanitizer</button>
+      <button class="demo-btn" onclick="setCondition('exhaust',720,'Near vehicle exhaust',true, event)">🚗 Exhaust</button>
+      <button class="demo-btn" onclick="setCondition('vent',130,'After ventilation',false, event)">💨 Ventilated</button>
+    </div>
+    <div class="lcd-screen">
+      <div class="lcd-row" id="lcd-row0">Gas Level: 120&nbsp;&nbsp;&nbsp;</div>
+      <div class="lcd-row" id="lcd-row1">Status: Safe&nbsp;&nbsp;&nbsp;&nbsp;</div>
+    </div>
+    <div class="demo-meter">
+      <div class="threshold-line"></div>
+      <div class="threshold-label">THRESHOLD 400</div>
+      <div class="meter-bar" id="meter-bar" style="width:11.7%;background:var(--safe)">
+        <span class="meter-val" id="meter-val">120</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.75rem;color:var(--wm);margin-bottom:1rem">
+      <span>0</span>
+      <div style="flex:1;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;position:relative">
+        <div style="position:absolute;left:39.1%;width:2px;height:100%;background:var(--warn)"></div>
+      </div>
+      <span>1023</span>
+    </div>
+    <div class="indicators">
+      <div>
+        <div class="led-indicator" id="led-ind">LED</div>
+        <div style="text-align:center;font-size:0.7rem;color:var(--wm);margin-top:0.3rem">D2</div>
+      </div>
+      <div>
+        <div class="buzzer-indicator" id="buzz-ind">🔔</div>
+        <div style="text-align:center;font-size:0.7rem;color:var(--wm);margin-top:0.3rem">D3</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div id="status-text" style="font-size:1.1rem;font-weight:700;color:var(--safe)">✅ AIR QUALITY SAFE</div>
+        <div id="adc-text" style="font-size:0.8rem;color:var(--wm);margin-top:0.2rem;font-family:var(--mono)">ADC: 120 / 1023</div>
+      </div>
+    </div>
+    <div class="serial-log" id="serial-log">
+      <div class="log-line" style="color:var(--g5)">===== AIR QUALITY MONITOR — SERIAL OUTPUT =====</div>
+    </div>
+  </div>
+
+  <div style="max-width:800px;margin:2rem auto 0">
+    <div class="chart-wrap">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--g6);margin-bottom:1rem">📊 Live Sensor Waveform (Oscilloscope View)</div>
+      <canvas id="live-chart" height="140"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- OBSERVATIONS -->
+<section id="observations">
+  <div class="section-label">09 — Observations & Results</div>
+  <h2 class="section-title">What We <span>Found</span></h2>
+  <div class="obs-table-wrap">
+    <table class="obs-table">
+      <thead><tr><th>S.No</th><th>Test Condition</th><th>Sensor Reading</th><th>Alert Status</th><th>Observation</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Normal indoor air</td><td>80 – 150</td><td><span class="badge badge-safe">No Alert</span></td><td>LED off, buzzer silent, LCD: Safe</td></tr>
+        <tr><td>2</td><td>Near cooking smoke</td><td>280 – 390</td><td><span class="badge badge-safe">No Alert</span></td><td>Elevated reading, still below threshold</td></tr>
+        <tr><td>3</td><td>Alcohol/sanitizer spray</td><td>420 – 680</td><td><span class="badge badge-alert">ALERT</span></td><td>LED on, buzzer sounds, LCD: GAS Detected!</td></tr>
+        <tr><td>4</td><td>Near exhaust / smoke</td><td>500 – 850</td><td><span class="badge badge-alert">ALERT</span></td><td>Strong response, sustained alert</td></tr>
+        <tr><td>5</td><td>After ventilation</td><td>100 – 160</td><td><span class="badge badge-safe">No Alert</span></td><td>System returns to safe state correctly</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="obs-chart" height="200"></canvas>
+  </div>
+</section>
+
+<!-- DISCUSSION -->
+<section id="discussion">
+  <div class="section-label">10 — Discussion & Interpretation</div>
+  <h2 class="section-title">Challenges & <span>Findings</span></h2>
+  <p class="section-body">The project successfully demonstrated threshold-based gas detection. Despite limitations, the system serves as a highly effective educational and awareness tool.</p>
+  <div class="disc-grid">
+    <div class="disc-card">
+      <div><div class="disc-label">Challenge</div><div class="disc-text">Sensor warmup</div></div>
+      <div><div class="disc-label">Finding</div><div class="disc-text">MQ-135 unstable for first 10–30 seconds</div></div>
+      <div><div class="disc-label">Resolution</div><div class="disc-text">10-second delay added in setup()</div></div>
+    </div>
+    <div class="disc-card">
+      <div><div class="disc-label">Challenge</div><div class="disc-text">Threshold selection</div></div>
+      <div><div class="disc-label">Finding</div><div class="disc-text">Fixed at 400 ADC units</div></div>
+      <div><div class="disc-label">Resolution</div><div class="disc-text">Reasonable for indoor demo; Rs/Ro calibration recommended for production</div></div>
+    </div>
+    <div class="disc-card">
+      <div><div class="disc-label">Challenge</div><div class="disc-text">Cross-sensitivity</div></div>
+      <div><div class="disc-label">Finding</div><div class="disc-text">Cannot distinguish NH₃, alcohol, CO₂, benzene</div></div>
+      <div><div class="disc-label">Resolution</div><div class="disc-text">General AQI indicator; specific sensors needed for precise detection</div></div>
+    </div>
+    <div class="disc-card">
+      <div><div class="disc-label">Challenge</div><div class="disc-text">Environmental drift</div></div>
+      <div><div class="disc-label">Finding</div><div class="disc-text">Resistance varies with temperature & humidity</div></div>
+      <div><div class="disc-label">Resolution</div><div class="disc-text">DHT22 compensation recommended for accurate readings</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- EVS -->
+<section id="evs">
+  <div class="section-label">11 — EVS Connection</div>
+  <h2 class="section-title">Linking <span>Science</span> to Reality</h2>
+  <p class="section-body">This project directly applies concepts from Unit III (Air Pollution) of the EVS syllabus (25CE101) to a real-world engineering prototype.</p>
+  <div class="evs-grid">
+    <div class="evs-card"><div class="evs-icon">🏭</div><div class="evs-title">Sources of Air Pollution</div><div class="evs-desc">The sensor's response to cooking smoke, vehicular exhaust, and chemical vapors corresponds to the primary anthropogenic pollution sources — combustion, industrial emissions, and solvent evaporation.</div></div>
+    <div class="evs-card"><div class="evs-icon">🫁</div><div class="evs-title">Health Impacts</div><div class="evs-desc">The alert threshold of 400 is a simplified analog of the AQI categories used by India's Central Pollution Control Board (CPCB). High AQI values correspond to increased health risks, especially for respiratory conditions.</div></div>
+    <div class="evs-card"><div class="evs-icon">📡</div><div class="evs-title">Monitoring & Regulation</div><div class="evs-desc">The real-time display and serial logging mirror the methodology used by official air quality monitoring stations — providing hands-on understanding of how environmental data is gathered.</div></div>
+    <div class="evs-card"><div class="evs-icon">🌱</div><div class="evs-title">Mitigation Strategies</div><div class="evs-desc">Reinforces the value of monitoring as the first step in pollution control. You cannot manage what you cannot measure — connecting to policy discussions on emission standards and green zones.</div></div>
+  </div>
+  <div style="margin-top:2.5rem;background:rgba(0,15,0,0.5);border:1px solid rgba(93,201,93,0.2);border-radius:1rem;padding:1.5rem">
+    <div style="font-size:0.85rem;font-weight:600;color:var(--g6);margin-bottom:1rem">🇮🇳 India AQI Scale (CPCB)</div>
+    <div class="aqi-bar" id="aqi-bar">
+      <div class="aqi-marker" id="aqi-marker" style="left:10%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--wm)">
+      <span>Good (0–50)</span><span>Satisfactory</span><span>Moderate</span><span>Poor</span><span>Very Poor</span><span>Severe (500+)</span>
+    </div>
+  </div>
+</section>
+
+<!-- CONCLUSION -->
+<section id="conclusion">
+  <div class="section-label">12 — Conclusion</div>
+  <h2 class="section-title">What We <span>Proved</span></h2>
+  <p class="section-body">This project demonstrated that a functional, real-time air quality monitoring system can be built at minimal cost using the MQ-135 gas sensor and the Arduino Uno R3 microcontroller.</p>
+  <div class="concl-grid">
+    <div class="concl-card"><div class="concl-icon">🎯</div><div class="concl-text">MQ-135 sensor reliably detects a wide range of harmful gases at low cost</div></div>
+    <div class="concl-card"><div class="concl-icon">🔔</div><div class="concl-text">Threshold-based alert logic provides immediate, intuitive feedback for non-technical users</div></div>
+    <div class="concl-card"><div class="concl-icon">📚</div><div class="concl-text">Experiential learning internalizes EVS concepts far more effectively than textbook study alone</div></div>
+    <div class="concl-card"><div class="concl-icon">🌍</div><div class="concl-text">Low-cost sensor networks like this can contribute meaningfully to community-level air quality awareness</div></div>
+  </div>
+</section>
+
+<!-- FUTURE -->
+<section id="future">
+  <div class="section-label">13 — Future Scope</div>
+  <h2 class="section-title">Where This <span>Goes Next</span></h2>
+  <div class="timeline">
+    <div class="tl-item"><div class="tl-dot">📐</div><div class="tl-text"><strong style="color:var(--g6)">PPM Calibration</strong> — Use the Rs/Ro method from the MQ-135 datasheet to provide readings in parts per million (ppm) rather than raw ADC values.</div></div>
+    <div class="tl-item"><div class="tl-dot">🌡️</div><div class="tl-text"><strong style="color:var(--g6)">DHT22 Integration</strong> — Add temperature and humidity sensor to compensate for environmental variations in gas sensor output.</div></div>
+    <div class="tl-item"><div class="tl-dot">☁️</div><div class="tl-text"><strong style="color:var(--g6)">Wi-Fi Cloud Logging</strong> — Integrate ESP8266/ESP32 to upload readings to ThingSpeak or Blynk for remote monitoring and data logging.</div></div>
+    <div class="tl-item"><div class="tl-dot">📱</div><div class="tl-text"><strong style="color:var(--g6)">Mobile Dashboard</strong> — Implement a web/mobile app to visualize historical air quality trends and push notifications.</div></div>
+    <div class="tl-item"><div class="tl-dot">🔬</div><div class="tl-text"><strong style="color:var(--g6)">Multi-Sensor Array</strong> — Replace single sensor with MQ-2, MQ-7, MQ-135 + dust sensor array for comprehensive air quality profiling.</div></div>
+    <div class="tl-item"><div class="tl-dot">📲</div><div class="tl-text"><strong style="color:var(--g6)">GSM SMS Alerts</strong> — Add GSM module to send SMS alerts when dangerous gas levels are detected in remote deployments.</div></div>
+    <div class="tl-item"><div class="tl-dot">🏠</div><div class="tl-text"><strong style="color:var(--g6)">Weatherproof Housing</strong> — Enclose the project in an IP65-rated housing for outdoor permanent deployment.</div></div>
+  </div>
+</section>
+
+<!-- REFERENCES -->
+<section id="references">
+  <div class="section-label">14 — References</div>
+  <h2 class="section-title">Sources & <span>Citations</span></h2>
+  <ol class="ref-list">
+    <li>Hanwei Electronics Co., Ltd. <em>MQ-135 Gas Sensor Datasheet.</em> Zhengzhou, China.</li>
+    <li>Banzi, M., & Shiloh, M. (2014). <em>Getting Started with Arduino.</em> O'Reilly Media.</li>
+    <li>World Health Organization. (2021). <em>WHO Global Air Quality Guidelines.</em> Geneva: WHO Press.</li>
+    <li>Central Pollution Control Board, India. <em>National Ambient Air Quality Standards (NAAQS).</em> Ministry of Environment, Forest and Climate Change.</li>
+    <li>Arduino Reference Documentation. <a href="https://www.arduino.cc/reference/en/" style="color:var(--g6)">arduino.cc/reference/en/</a></li>
+    <li>LiquidCrystal_I2C Arduino Library. Frank de Brabander. GitHub Repository.</li>
+    <li>Deswal, S. S., & Deswal, A. (2012). <em>A Basic Course in Environmental Studies.</em> Dhanpat Rai & Co.</li>
+  </ol>
+</section>
+
+<footer>
+  <strong>Arduino-Based Air Quality Sensor</strong> — EVS Project 25CE101<br>
+  Department of Computer Science Engineering · Jain (Deemed-to-be University) · Faculty of Engineering and Technology<br>
+  <span style="color:var(--wm);font-size:0.8rem;margin-top:0.5rem;display:block">Submitted to Ms. Prathima · 2025</span>
+</footer>
+
+<script>
+// ── SCROLL ANIMATIONS ──────────────────────────────────────────────
+gsap.registerPlugin(ScrollTrigger);
+document.querySelectorAll('.obj-card, .flow-step, .tl-item').forEach((el,i)=>{
+  ScrollTrigger.create({
+    trigger:el, start:'top 88%',
+    onEnter:()=>{
+      setTimeout(()=>el.classList.add('visible'),i%3*80);
+    }
+  });
+});
+
+// Counter animation
+ScrollTrigger.create({
+  trigger:'#intro', start:'top 60%',
+  onEnter:()=>{
+    let n=0; const target=4.2;
+    const el=document.getElementById('counter1');
+    const int=setInterval(()=>{n=Math.min(n+0.1,target);el.textContent=n.toFixed(1)+'M';if(n>=target)clearInterval(int)},40);
+  }
+});
+
+// ── THEORY TABS ────────────────────────────────────────────────────
+function showTab(id, event){
+  document.querySelectorAll('.theory-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.theory-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+  } else if (window.event) {
+    window.event.srcElement.classList.add('active');
+  }
+}
+
+// ── COMPONENT DETAILS (3D EMBEDS) ──────────────────────────────────
+const compDetails = {
+  arduino:{
+    title:'Arduino Uno R3',
+    embedId:'f31feafc5e9743abbdf33c54f9d92669',
+    body:'Microcontroller: ATmega328P @ 16MHz, 5V. 14 digital I/O pins, 6 analog inputs (10-bit ADC). USB connectivity for serial communication at 9600 baud. Brain of the system — reads sensors, makes decisions, drives outputs.'
+  },
+  mq135:{
+    title:'MQ-135 Gas Sensor',
+    embedId:'502d6b38c92a40599c92257d0799831d',
+    body:'Metal oxide semiconductor sensor (SnO₂) sensitive to NH₃, NOₓ, alcohol, benzene, smoke, CO₂. Operates via chemiresistance at ~200°C. AOUT connected to pin A1. Reads 0–1023 (higher = more gas). Alert triggers > 400.'
+  },
+  lcd:{
+    title:'16×2 I2C LCD Module',
+    embedId:'f4a375b84c1244da8eda8a064276157c',
+    body:'PCF8574 I2C expander chip, address 0x27. 16 columns × 2 rows. SDA → A4, SCL → A5. Displays "Gas Level: [val]" on row 0 and "GAS Detected!" or "Status: Safe" on row 1.'
+  },
+  led:{
+    title:'Red LED (5mm)',
+    embedId:'aa96ce364eff4e869f50d20d04677034',
+    body:'2V forward voltage. Connected to pin D2 via a mandatory 220Ω series resistor. Resistor limits current to ~14mA, protecting the Arduino output pin (max 40mA). Switches ON when gas > 400.'
+  },
+  buzzer:{
+    title:'Passive Buzzer (5V)',
+    embedId:'c96766487e464016a96e95c1a84f33b1',
+    body:'MUST be passive type to work with Arduino tone() function. Connected to pin D3. tone(BUZZER_PIN, 1000) produces 1kHz alert sound. An active buzzer would only make one fixed tone regardless of code.'
+  },
+  resistor:{
+    title:'220Ω Resistor (1/4W)',
+    embedId:'4f41999ddefe4d1996887353a287355f',
+    body:'Connected in series with the LED between pin D2 and LED anode. Limits current flow to safe levels (approx 14mA). Without this, the LED would draw too much current and damage the Arduino I/O pin permanently.'
+  },
+  breadboard:{
+    title:'Breadboard (830 tie-point)',
+    embedId:'497ee275a25e4166b98c7be3105b4ad9',
+    body:'Solderless prototyping board. Provides shared power rails (+5V and GND buses) and individual tie-point rows for component connections. Center gap separates DIP components.'
+  },
+  wires:{
+    title:'Jumper Wires (M-M, M-F, F-F)',
+    embedId:'04a9112bf62e436193827fbc6ed5a534',
+    body:'Male-to-male, male-to-female, female-to-female variants used to connect breadboard, Arduino headers, sensor pins, and LCD module. Color convention: Red = 5V, Black = GND, Yellow = Analog, Blue = Digital, Purple = I2C.'
+  }
+};
+
+function showComp(id){
+  const d=compDetails[id];
+  document.getElementById('cd-title').textContent=d.title;
+  document.getElementById('cd-body').textContent=d.body;
+  
+  // Set up Sketchfab embed
+  const container = document.getElementById('cd-embed-container');
+  container.innerHTML = `<iframe class="sketchfab-embed" title="${d.title}" src="https://sketchfab.com/models/${d.embedId}/embed?autostart=1&ui_controls=1&ui_infos=0&dnt=1" allowfullscreen mozallowfullscreen="true" webkitallowfullscreen="true" allow="autoplay; fullscreen; xr-spatial-tracking"></iframe>`;
+  
+  document.getElementById('comp-detail').classList.add('show');
+}
+
+function closeComp(){
+  document.getElementById('comp-detail').classList.remove('show');
+  document.getElementById('cd-embed-container').innerHTML = ''; // Kill running frame
+}
+
+// ── CIRCUIT THREE.JS (HIGH FIDELITY CONNECTED CIRCUIT) ─────────────
+(function(){
+  const canvas = document.getElementById('circuit-3d');
+  const wrap = document.getElementById('circuit-canvas-wrap');
+  if(!canvas || !wrap) return;
+
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, wrap.clientWidth/wrap.clientHeight, 0.1, 1000);
+  camera.position.set(0, 10, 22);
+  camera.lookAt(0, 0, 0);
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+  scene.add(ambientLight);
+
+  const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight1.position.set(10, 15, 10);
+  scene.add(dirLight1);
+
+  const dirLight2 = new THREE.DirectionalLight(0x5ec95e, 0.4);
+  dirLight2.position.set(-10, -10, -5);
+  scene.add(dirLight2);
+
+  const compMeshes = [];
+  const compData = {
+    'Arduino': '🔵 Arduino Uno R3 — The microcontroller brain. Runs logic, reads MQ-135 analog voltage, controls LED/buzzer alert states, and displays readings on the LCD.',
+    'MQ-135': '🟤 MQ-135 Gas Sensor — Detects ammonia, smoke, benzene, and CO₂. AOUT pin connects to Arduino A1. VCC connects to +5V rail, GND to ground rail.',
+    'LCD': '🟩 16x2 I2C LCD Display — Displays real-time Gas Level and Alert status. Uses I2C communications (SDA→A4, SCL→A5) via the backpack module.',
+    'LED': '🔴 Red LED (Alert) — Flashes when Gas Level exceeds 400. Connected to Digital Pin 2 through a 220Ω current-limiting resistor to protect the pin.',
+    'Buzzer': '🔔 Passive Buzzer — Sounds a 1kHz tone when the Gas Level is in alert state. Connected to Digital Pin 3 and Ground.',
+    'Resistor': '⚡ 220Ω Resistor — Connected in series with the LED to limit current draw, preventing damage to the LED and Arduino I/O pin.',
+    'Breadboard': '🟫 Solderless Breadboard — Houses the MQ-135, LED, buzzer, and resistor, distributing +5V power and Ground rails across the circuit.'
+  };
+
+  // Helper function to create shiny materials
+  function getMaterial(color, shininess = 30) {
+    return new THREE.MeshPhongMaterial({
+      color: color,
+      shininess: shininess,
+      specular: 0x444444
+    });
+  }
+
+  // Helper to add parts to a group and track interactivity
+  function registerComponent(group, name) {
+    group.userData = { name: name };
+    scene.add(group);
+    
+    // For raycasting, we want to trace child meshes back to this group
+    group.traverse(child => {
+      if (child.isMesh) {
+        child.userData = { parentGroup: group };
+        compMeshes.push(child);
+      }
+    });
+  }
+
+  // --- 1. BREADBOARD ---
+  const breadboardGroup = new THREE.Group();
+  
+  // Board base
+  const bbBase = new THREE.Mesh(new THREE.BoxGeometry(13, 5.2, 0.35), getMaterial(0xeeeeee));
+  breadboardGroup.add(bbBase);
+
+  // Power rails (visual lines)
+  const redRail = new THREE.Mesh(new THREE.BoxGeometry(12, 0.05, 0.38), getMaterial(0xcc1111));
+  redRail.position.set(0, 2.2, 0.01);
+  breadboardGroup.add(redRail);
+  
+  const blueRail = new THREE.Mesh(new THREE.BoxGeometry(12, 0.05, 0.38), getMaterial(0x1111cc));
+  blueRail.position.set(0, 2.0, 0.01);
+  breadboardGroup.add(blueRail);
+
+  const redRailBot = new THREE.Mesh(new THREE.BoxGeometry(12, 0.05, 0.38), getMaterial(0xcc1111));
+  redRailBot.position.set(0, -2.0, 0.01);
+  breadboardGroup.add(redRailBot);
+  
+  const blueRailBot = new THREE.Mesh(new THREE.BoxGeometry(12, 0.05, 0.38), getMaterial(0x1111cc));
+  blueRailBot.position.set(0, -2.2, 0.01);
+  breadboardGroup.add(blueRailBot);
+
+  // Grid Holes representation (small points)
+  const holeGeo = new THREE.BoxGeometry(0.08, 0.08, 0.02);
+  const holeMat = getMaterial(0x222222);
+  for (let x = -5.8; x <= 5.8; x += 0.4) {
+    // Top rails
+    const h1 = new THREE.Mesh(holeGeo, holeMat); h1.position.set(x, 2.4, 0.18); breadboardGroup.add(h1);
+    const h2 = new THREE.Mesh(holeGeo, holeMat); h2.position.set(x, 1.8, 0.18); breadboardGroup.add(h2);
+    // Mid grid rows (a,b,c,d,e)
+    for (let y = 0.4; y <= 1.2; y += 0.2) {
+      const hm = new THREE.Mesh(holeGeo, holeMat);
+      hm.position.set(x, y, 0.18);
+      breadboardGroup.add(hm);
+    }
+    // Mid grid rows (f,g,h,i,j)
+    for (let y = -1.2; y <= -0.4; y += 0.2) {
+      const hm = new THREE.Mesh(holeGeo, holeMat);
+      hm.position.set(x, y, 0.18);
+      breadboardGroup.add(hm);
+    }
+    // Bottom rails
+    const h3 = new THREE.Mesh(holeGeo, holeMat); h3.position.set(x, -1.8, 0.18); breadboardGroup.add(h3);
+    const h4 = new THREE.Mesh(holeGeo, holeMat); h4.position.set(x, -2.4, 0.18); breadboardGroup.add(h4);
+  }
+
+  breadboardGroup.position.set(1.5, -1, 0);
+  registerComponent(breadboardGroup, 'Breadboard');
+
+
+  // --- 2. ARDUINO UNO R3 ---
+  const arduinoGroup = new THREE.Group();
+  
+  // Blue PCB
+  const board = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 0.25), getMaterial(0x0a3560));
+  arduinoGroup.add(board);
+  
+  // Board edge outlines (adds premium wireframe highlight)
+  const edgeGeo = new THREE.EdgesGeometry(board.geometry);
+  const edgeLine = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color: 0x5ec95e}));
+  arduinoGroup.add(edgeLine);
+
+  // USB Port
+  const usb = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.2, 0.65), getMaterial(0xbbbbbb));
+  usb.position.set(-2.6, 1.2, 0.4);
+  arduinoGroup.add(usb);
+
+  // DC Power Jack
+  const jack = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 1.0), getMaterial(0x151515));
+  jack.position.set(-2.6, -1.2, 0.55);
+  arduinoGroup.add(jack);
+
+  // ATmega328P Chip
+  const chip = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 0.25), getMaterial(0x1a1a1a));
+  chip.position.set(1.2, -0.4, 0.25);
+  arduinoGroup.add(chip);
+
+  // ICSP Header pins
+  const icsp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.4), getMaterial(0x222222));
+  icsp.position.set(2.6, -0.4, 0.35);
+  arduinoGroup.add(icsp);
+
+  // Header Pin Sockets
+  const headerTop = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.3, 0.45), getMaterial(0x1c1c1c));
+  headerTop.position.set(0.6, 2.0, 0.3);
+  arduinoGroup.add(headerTop);
+
+  const headerBot = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.3, 0.45), getMaterial(0x1c1c1c));
+  headerBot.position.set(0.6, -2.0, 0.3);
+  arduinoGroup.add(headerBot);
+
+  arduinoGroup.position.set(-6, -0.5, 0);
+  registerComponent(arduinoGroup, 'Arduino');
+
+
+  // --- 3. MQ-135 GAS SENSOR ---
+  const mq135Group = new THREE.Group();
+  
+  // Sensor Board
+  const mqPCB = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 0.15), getMaterial(0x0b264f));
+  mq135Group.add(mqPCB);
+
+  // Sensor Dome (Mesh Shield)
+  const mqDome = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.9, 16), getMaterial(0x777777));
+  mqDome.rotation.x = Math.PI / 2;
+  mqDome.position.set(0, 0, 0.55);
+  mq135Group.add(mqDome);
+
+  // Top ring
+  const mqRing = new THREE.Mesh(new THREE.CylinderGeometry(0.67, 0.67, 0.1, 16), getMaterial(0x333333));
+  mqRing.rotation.x = Math.PI / 2;
+  mqRing.position.set(0, 0, 1.05);
+  mq135Group.add(mqRing);
+
+  // Board Pins
+  const pin1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5), getMaterial(0xdddddd));
+  pin1.position.set(-0.4, -1.0, 0);
+  mq135Group.add(pin1);
+  const pin2 = pin1.clone(); pin2.position.x = -0.12; mq135Group.add(pin2);
+  const pin3 = pin1.clone(); pin3.position.x = 0.12; mq135Group.add(pin3);
+  const pin4 = pin1.clone(); pin4.position.x = 0.4; mq135Group.add(pin4);
+
+  // Placed on breadboard on the right side
+  mq135Group.position.set(4.5, -0.7, 0.5);
+  registerComponent(mq135Group, 'MQ-135');
+
+
+  // --- 4. 16X2 I2C LCD DISPLAY ---
+  const lcdGroup = new THREE.Group();
+  
+  // Green Screen PCB
+  const lcdPCB = new THREE.Mesh(new THREE.BoxGeometry(8, 3.6, 0.16), getMaterial(0x133813));
+  lcdGroup.add(lcdPCB);
+
+  // Black display bezel
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 0.25), getMaterial(0x1c1c1c));
+  bezel.position.set(0, 0, 0.18);
+  lcdGroup.add(bezel);
+
+  // Glowing screen glass
+  const screen = new THREE.Mesh(
+    new THREE.BoxGeometry(6.2, 1.6, 0.1),
+    new THREE.MeshPhongMaterial({
+      color: 0x00ff44,
+      emissive: 0x00aa22,
+      shininess: 90
+    })
+  );
+  screen.position.set(0, 0, 0.3);
+  lcdGroup.add(screen);
+
+  // Character rows (visual simulator on screen)
+  const charRow1 = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.15, 0.02), getMaterial(0x003300));
+  charRow1.position.set(0, 0.3, 0.36);
+  lcdGroup.add(charRow1);
+  
+  const charRow2 = charRow1.clone();
+  charRow2.position.y = -0.3;
+  lcdGroup.add(charRow2);
+
+  // Pins at the left
+  const lcdPins = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.5), getMaterial(0x888888));
+  lcdPins.position.set(-3.7, 0, -0.35);
+  lcdGroup.add(lcdPins);
+
+  lcdGroup.position.set(0, 3.4, -0.5);
+  lcdGroup.rotation.x = 0.2; // Angle slightly down toward user
+  registerComponent(lcdGroup, 'LCD');
+
+
+  // --- 5. RED LED (5MM) ---
+  const ledGroup = new THREE.Group();
+  
+  // Transparent red bulb
+  const ledBulb = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.25, 0.25, 0.5, 16),
+    new THREE.MeshPhongMaterial({
+      color: 0xff1111,
+      emissive: 0x440000,
+      transparent: true,
+      opacity: 0.85,
+      shininess: 100
+    })
+  );
+  ledBulb.rotation.x = Math.PI / 2;
+  ledBulb.position.set(0, 0, 0.5);
+  ledGroup.add(ledBulb);
+
+  const ledDome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.25, 16, 8, 0, Math.PI*2, 0, Math.PI/2),
+    new THREE.MeshPhongMaterial({
+      color: 0xff1111,
+      emissive: 0x440000,
+      transparent: true,
+      opacity: 0.85,
+      shininess: 100
+    })
+  );
+  ledDome.rotation.x = -Math.PI / 2;
+  ledDome.position.set(0, 0, 0.75);
+  ledGroup.add(ledDome);
+
+  // LED Leg Pins
+  const ledLeg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6), getMaterial(0xdddddd));
+  ledLeg1.position.set(-0.08, -0.3, 0);
+  ledGroup.add(ledLeg1);
+  
+  const ledLeg2 = ledLeg1.clone();
+  ledLeg2.position.x = 0.08;
+  ledGroup.add(ledLeg2);
+
+  ledGroup.position.set(-1.0, -0.7, 0.5);
+  registerComponent(ledGroup, 'LED');
+
+
+  // --- 6. 220 OHM RESISTOR ---
+  const resistorGroup = new THREE.Group();
+  
+  // Body
+  const rBody = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.5, 12), getMaterial(0xdec8a4));
+  rBody.rotation.x = Math.PI / 2;
+  rBody.position.set(0, 0, 0.3);
+  resistorGroup.add(rBody);
+
+  // Band rings (Red, Red, Brown, Gold)
+  const band1 = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 12), getMaterial(0xcc1111));
+  band1.rotation.x = Math.PI / 2;
+  band1.position.set(0, 0, 0.42);
+  resistorGroup.add(band1);
+
+  const band2 = band1.clone(); band2.position.set(0, 0, 0.32); resistorGroup.add(band2);
+  
+  const band3 = band1.clone(); band3.material = getMaterial(0x5a2d0c); band3.position.set(0, 0, 0.22); resistorGroup.add(band3);
+  
+  const band4 = band1.clone(); band4.material = getMaterial(0xffcc00); band4.position.set(0, 0, 0.12); resistorGroup.add(band4);
+
+  // Wire leads
+  const lead1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.4), getMaterial(0x999999));
+  lead1.position.set(0, -0.2, 0.35);
+  resistorGroup.add(lead1);
+
+  resistorGroup.position.set(-2.5, -0.7, 0.5);
+  registerComponent(resistorGroup, 'Resistor');
+
+
+  // --- 7. PASSIVE BUZZER ---
+  const buzzerGroup = new THREE.Group();
+  
+  // Cylinder Body
+  const bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.65, 16), getMaterial(0x1a1a1a));
+  bBody.rotation.x = Math.PI / 2;
+  bBody.position.set(0, 0, 0.4);
+  buzzerGroup.add(bBody);
+
+  // Top Hole ring
+  const bHole = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.05, 16), getMaterial(0x050505));
+  bHole.rotation.x = Math.PI / 2;
+  bHole.position.set(0, 0, 0.73);
+  buzzerGroup.add(bHole);
+
+  // Buzzer Leads
+  const bLead1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5), getMaterial(0xcccccc));
+  bLead1.position.set(-0.25, -0.3, 0.25);
+  buzzerGroup.add(bLead1);
+  const bLead2 = bLead1.clone(); bLead2.position.x = 0.25; buzzerGroup.add(bLead2);
+
+  buzzerGroup.position.set(1.5, -0.7, 0.5);
+  registerComponent(buzzerGroup, 'Buzzer');
+
+
+  // --- 8. 3D CURVED JUMPER WIRES ---
+  // Wires connect points using TubeGeometry with CatmullRomCurve3
+  function drawJumperWire(startPt, endPt, colorCode) {
+    // Generate curved path with high peak to make it look like a loop wire
+    const dist = startPt.distanceTo(endPt);
+    const midX = startPt.x + (endPt.x - startPt.x) * 0.5;
+    const midY = startPt.y + (endPt.y - startPt.y) * 0.5 + dist * 0.15;
+    const midZ = startPt.z + (endPt.z - startPt.z) * 0.5 + dist * 0.35 + 1.2;
+
+    const midPoint = new THREE.Vector3(midX, midY, midZ);
+    
+    // Add sub control points for a smooth organic shape
+    const control1 = new THREE.Vector3(
+      startPt.x + (midPoint.x - startPt.x) * 0.4,
+      startPt.y + (midPoint.y - startPt.y) * 0.3 + 0.5,
+      startPt.z + (midPoint.z - startPt.z) * 0.4 + 0.2
+    );
+    const control2 = new THREE.Vector3(
+      midPoint.x + (endPt.x - midPoint.x) * 0.6,
+      midPoint.y + (endPt.y - midPoint.y) * 0.7 + 0.5,
+      midPoint.z + (endPt.z - midPoint.z) * 0.6 + 0.2
+    );
+
+    const path = new THREE.CatmullRomCurve3([
+      startPt,
+      control1,
+      midPoint,
+      control2,
+      endPt
+    ]);
+
+    const tubeGeometry = new THREE.TubeGeometry(path, 24, 0.07, 8, false);
+    const tubeMaterial = new THREE.MeshPhongMaterial({
+      color: colorCode,
+      shininess: 70,
+      specular: 0x333333
+    });
+    
+    const wireMesh = new THREE.Mesh(tubeGeometry, tubeMaterial);
+    scene.add(wireMesh);
+  }
+
+  // Define Coordinates for all connect points:
+  // Arduino Pins
+  const p_Ard5V = new THREE.Vector3(-4.8, -2.6, 0.5);
+  const p_ArdGND = new THREE.Vector3(-5.2, -2.6, 0.5);
+  const p_ArdA1 = new THREE.Vector3(-3.4, -2.6, 0.5);
+  const p_ArdA4 = new THREE.Vector3(-2.2, -2.6, 0.5);
+  const p_ArdA5 = new THREE.Vector3(-1.8, -2.6, 0.5);
+  const p_ArdD2 = new THREE.Vector3(-4.3, 1.5, 0.5);
+  const p_ArdD3 = new THREE.Vector3(-4.8, 1.5, 0.5);
+
+  // Breadboard Rails (mapped to coordinates)
+  const p_BBTopRed = new THREE.Vector3(0.5, 1.2, 0.4);
+  const p_BBTopBlue = new THREE.Vector3(0.5, 1.0, 0.4);
+  const p_BBBotRed = new THREE.Vector3(-0.5, -3.0, 0.4);
+  const p_BBBotBlue = new THREE.Vector3(-0.5, -3.2, 0.4);
+
+  // Component Pins
+  const p_MQVCC = new THREE.Vector3(4.1, -1.7, 0.5);
+  const p_MQGND = new THREE.Vector3(4.38, -1.7, 0.5);
+  const p_MQAOUT = new THREE.Vector3(4.9, -1.7, 0.5);
+
+  const p_LEDAnode = new THREE.Vector3(-1.08, -1.0, 0.5);
+  const p_LEDCathode = new THREE.Vector3(-0.92, -1.0, 0.5);
+
+  const p_ResLeft = new THREE.Vector3(-2.5, -0.9, 0.5);
+  const p_ResRight = new THREE.Vector3(-2.5, -0.5, 0.5);
+
+  const p_BuzzerPos = new THREE.Vector3(1.25, -1.0, 0.5);
+  const p_BuzzerNeg = new THREE.Vector3(1.75, -1.0, 0.5);
+
+  const p_LCDVCC = new THREE.Vector3(-3.6, 3.8, -0.4);
+  const p_LCDGND = new THREE.Vector3(-3.6, 3.6, -0.4);
+  const p_LCDSDA = new THREE.Vector3(-3.6, 3.4, -0.4);
+  const p_LCDSCL = new THREE.Vector3(-3.6, 3.2, -0.4);
+
+  // --- DRAWING JUMPER WIRES ---
+  // Arduino 5V -> Breadboard Bottom Red (+)
+  drawJumperWire(p_Ard5V, p_BBBotRed, 0xcc1111);
+  // Arduino GND -> Breadboard Bottom Blue (-)
+  drawJumperWire(p_ArdGND, p_BBBotBlue, 0x222222);
+
+  // Bridge Breadboard Rails (Bottom Red to Top Red, Bottom Blue to Top Blue)
+  drawJumperWire(new THREE.Vector3(-3, -3.0, 0.4), new THREE.Vector3(-3, 1.2, 0.4), 0xcc1111);
+  drawJumperWire(new THREE.Vector3(-3.4, -3.2, 0.4), new THREE.Vector3(-3.4, 1.0, 0.4), 0x222222);
+
+  // MQ-135 VCC -> Breadboard Top Red (+)
+  drawJumperWire(p_MQVCC, new THREE.Vector3(4.1, 1.2, 0.4), 0xcc1111);
+  // MQ-135 GND -> Breadboard Top Blue (-)
+  drawJumperWire(p_MQGND, new THREE.Vector3(4.38, 1.0, 0.4), 0x222222);
+  // MQ-135 AOUT -> Arduino A1 (Yellow Signal)
+  drawJumperWire(p_MQAOUT, p_ArdA1, 0xffaa00);
+
+  // Resistor to LED Anode bridge
+  drawJumperWire(p_ResRight, p_LEDAnode, 0x4488ff);
+  // Resistor Left end -> Arduino D2
+  drawJumperWire(p_ResLeft, p_ArdD2, 0x4488ff);
+  // LED Cathode -> Breadboard Bottom Blue (-)
+  drawJumperWire(p_LEDCathode, new THREE.Vector3(-0.92, -3.2, 0.4), 0x222222);
+
+  // Buzzer Positive -> Arduino D3
+  drawJumperWire(p_BuzzerPos, p_ArdD3, 0xffaa00);
+  // Buzzer Negative -> Breadboard Bottom Blue (-)
+  drawJumperWire(p_BuzzerNeg, new THREE.Vector3(1.75, -3.2, 0.4), 0x222222);
+
+  // LCD VCC -> Breadboard Top Red (+)
+  drawJumperWire(p_LCDVCC, new THREE.Vector3(-2, 1.2, 0.4), 0xcc1111);
+  // LCD GND -> Breadboard Top Blue (-)
+  drawJumperWire(p_LCDGND, new THREE.Vector3(-2.4, 1.0, 0.4), 0x222222);
+  // LCD SDA -> Arduino A4 (Purple I2C)
+  drawJumperWire(p_LCDSDA, p_ArdA4, 0x8811bb);
+  // LCD SCL -> Arduino A5 (Purple I2C)
+  drawJumperWire(p_LCDSCL, p_ArdA5, 0x8811bb);
+
+
+  // --- INTERACTION / CAMERA CONTROL ---
+  let isDragging = false;
+  let previousMousePosition = { x: 0, y: 0 };
+  let rotationSpeed = 0.007;
+
+  // Orbit rotation variables
+  let theta = 0; // horizontal angle
+  let phi = Math.PI / 3; // vertical angle
+  let radius = 23; // distance from origin
+
+  function updateCameraPosition() {
+    // Clamping vertical angle to prevent flipping
+    phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, phi));
+
+    camera.position.x = radius * Math.sin(phi) * Math.sin(theta);
+    camera.position.y = radius * Math.cos(phi);
+    camera.position.z = radius * Math.sin(phi) * Math.cos(theta);
+    camera.lookAt(0, 0, 0);
+  }
+
+  // Init position
+  updateCameraPosition();
+
+  canvas.addEventListener('mousedown', e => {
+    isDragging = true;
+    previousMousePosition = { x: e.clientX, y: e.clientY };
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    isDragging = true;
+    previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, {passive:true});
+
+  window.addEventListener('mouseup', () => isDragging = false);
+  window.addEventListener('touchend', () => isDragging = false);
+
+  canvas.addEventListener('mousemove', e => {
+    if (isDragging) {
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      theta -= deltaX * rotationSpeed;
+      phi -= deltaY * rotationSpeed;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+      updateCameraPosition();
+    }
+  });
+
+  canvas.addEventListener('touchmove', e => {
+    if (isDragging) {
+      const deltaX = e.touches[0].clientX - previousMousePosition.x;
+      const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+      theta -= deltaX * rotationSpeed;
+      phi -= deltaY * rotationSpeed;
+
+      previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      updateCameraPosition();
+    }
+  }, {passive:true});
+
+  // --- RAYCASTING SELECTOR ---
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  canvas.addEventListener('click', e => {
+    // Avoid selecting on end drag
+    if (isDragging) return;
+
+    // Calculate mouse position relative to canvas
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / canvas.clientWidth) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / canvas.clientHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(compMeshes);
+
+    if (intersects.length > 0) {
+      // Find parent group representing component
+      let hitMesh = intersects[0].object;
+      let group = hitMesh.userData.parentGroup;
+      if (group) {
+        const name = group.userData.name;
+        document.getElementById('wire-info').innerHTML = `💡 <strong>${name}</strong>: ${compData[name]}`;
+        
+        // Reset all components emissive highlights
+        scene.traverse(node => {
+          if (node.isGroup && node.userData.name) {
+            node.traverse(child => {
+              if (child.isMesh && child.material) {
+                child.material.emissive = new THREE.Color(0x000000);
+              }
+            });
+          }
+        });
+
+        // Highlight selected group
+        group.traverse(child => {
+          if (child.isMesh && child.material) {
+            child.material.emissive = new THREE.Color(0x003300);
+          }
+        });
+      }
+    }
+  });
+
+  // Resize handler
+  function handleResize() {
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', handleResize);
+  handleResize();
+
+  // Animation Loop
+  let t = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    
+    // Subtle auto-rotation when user is not interacting
+    if (!isDragging) {
+      t += 0.002;
+      // Gently orbit around origin
+      theta = Math.sin(t * 0.5) * 0.4;
+      updateCameraPosition();
+    }
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// ── LIVE DEMO (AUDIO CONTEXT TRIGGER) ──────────────────────────────
+let demoInterval=null;
+let currentVal=120, targetVal=120;
+let audioCtx = null;
+let oscillator=null, gainNode=null;
+
+function initAudio(){
+  if(!audioCtx && (window.AudioContext || window.webkitAudioContext)){
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+  if(audioCtx && audioCtx.state === 'suspended'){
+    audioCtx.resume();
+  }
+}
+
+function playBuzzer(){
+  initAudio();
+  if(!audioCtx) return;
+  stopBuzzer();
+  oscillator = audioCtx.createOscillator();
+  gainNode = audioCtx.createGain();
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  oscillator.type = 'square';
+  oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+  gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  oscillator.start();
+}
+
+function stopBuzzer(){
+  if(oscillator){try{oscillator.stop();oscillator.disconnect();}catch(e){}oscillator=null;}
+}
+
+const serialLog = document.getElementById('serial-log');
+function addLog(val, alertTriggered, alertCleared){
+  if(!serialLog) return;
+  const line = document.createElement('div');
+  line.className = 'log-line'+(alertTriggered?' log-alert':'')+(alertCleared?' log-clear':'');
+  line.textContent = 'Gas Level: '+val + (alertTriggered?' --> ⚠ ALERT TRIGGERED':'') + (alertCleared?' --> ✅ ALERT CLEARED':'');
+  serialLog.appendChild(line);
+  serialLog.scrollTop = serialLog.scrollHeight;
+  if(serialLog.children.length > 40) serialLog.removeChild(serialLog.children[1]);
+}
+
+let wasAlert=false;
+function updateDemo(){
+  currentVal += (targetVal-currentVal)*0.15 + (Math.random()-0.5)*8;
+  currentVal = Math.max(0, Math.min(1023, Math.round(currentVal)));
+  const pct = (currentVal/1023)*100;
+  const bar = document.getElementById('meter-bar');
+  const mv = document.getElementById('meter-val');
+  const led = document.getElementById('led-ind');
+  const buzz = document.getElementById('buzz-ind');
+  const st = document.getElementById('status-text');
+  const adct = document.getElementById('adc-text');
+  const lr0 = document.getElementById('lcd-row0');
+  const lr1 = document.getElementById('lcd-row1');
+
+  if(bar) bar.style.width = pct+'%';
+  if(mv) mv.textContent = currentVal;
+  if(adct) adct.textContent = 'ADC: '+currentVal+' / 1023';
+  if(lr0) lr0.textContent = 'Gas Level: '+currentVal+'   ';
+
+  const nowAlert = currentVal > 400;
+  const triggeredNow = nowAlert && !wasAlert;
+  const clearedNow = !nowAlert && wasAlert;
+
+  addLog(currentVal, triggeredNow, clearedNow);
+
+  if(nowAlert){
+    if(bar) bar.style.background = currentVal > 700 ? 'var(--alert)' : 'var(--warn)';
+    if(led) led.classList.add('on');
+    if(buzz) buzz.classList.add('on');
+    if(st) {
+      st.textContent = '⚠️ GAS DETECTED!';
+      st.style.color = 'var(--alert)';
+    }
+    if(lr1) lr1.textContent = 'GAS Detected!   ';
+    if(triggeredNow) playBuzzer();
+  } else {
+    if(bar) bar.style.background = 'var(--safe)';
+    if(led) led.classList.remove('on');
+    if(buzz) buzz.classList.remove('on');
+    if(st) {
+      st.textContent = '✅ AIR QUALITY SAFE';
+      st.style.color = 'var(--safe)';
+    }
+    if(lr1) lr1.textContent = 'Status: Safe    ';
+    if(clearedNow) stopBuzzer();
+  }
+  wasAlert = nowAlert;
+
+  // Update live chart
+  if(liveChart){
+    liveChart.data.datasets[0].data.push(currentVal);
+    if(liveChart.data.datasets[0].data.length > 50) liveChart.data.datasets[0].data.shift();
+    liveChart.data.datasets[1].data.push(400);
+    if(liveChart.data.datasets[1].data.length > 50) liveChart.data.datasets[1].data.shift();
+    liveChart.data.labels.push('');
+    if(liveChart.data.labels.length > 50) liveChart.data.labels.shift();
+    liveChart.update('none');
+  }
+}
+
+function setCondition(name, val, label, isAlert, event){
+  targetVal=val;
+  document.querySelectorAll('.demo-btn').forEach(b=>b.classList.remove('active'));
+  if(event && event.currentTarget) {
+    event.currentTarget.classList.add('active');
+  } else if (window.event) {
+    window.event.srcElement.classList.add('active');
+  }
+  initAudio();
+}
+
+demoInterval = setInterval(updateDemo, 300);
+
+// Live chart
+let liveChart;
+const liveCtx = document.getElementById('live-chart').getContext('2d');
+liveChart = new Chart(liveCtx,{
+  type:'line',
+  data:{
+    labels:Array(30).fill(''),
+    datasets:[
+      {label:'Gas Level',data:Array(30).fill(120),borderColor:'#5ec95e',backgroundColor:'rgba(94,201,94,0.1)',borderWidth:2,pointRadius:0,fill:true,tension:0.4},
+      {label:'Threshold',data:Array(30).fill(400),borderColor:'#ffaa00',borderWidth:1.5,borderDash:[5,5],pointRadius:0,fill:false}
+    ]
+  },
+  options:{
+    responsive:true, animation:false,
+    plugins:{legend:{labels:{color:'#90e090',font:{size:11}}},tooltip:{enabled:false}},
+    scales:{
+      x:{display:false},
+      y:{min:0,max:1023,grid:{color:'rgba(93,201,93,0.1)'},ticks:{color:'#5ec95e',font:{size:11}}}
+    }
+  }
+});
+
+// Observation chart
+const obsCtx = document.getElementById('obs-chart').getContext('2d');
+new Chart(obsCtx,{
+  type:'bar',
+  data:{
+    labels:['Normal Air','Cooking Smoke','Sanitizer Spray','Vehicle Exhaust','After Ventilation'],
+    datasets:[
+      {label:'Min Reading',data:[80,280,420,500,100],backgroundColor:'rgba(94,201,94,0.4)',borderColor:'#5ec95e',borderWidth:1.5},
+      {label:'Max Reading',data:[150,390,680,850,160],backgroundColor:'rgba(255,170,0,0.3)',borderColor:'#ffaa00',borderWidth:1.5}
+    ]
+  },
+  options:{
+    responsive:true,
+    plugins:{
+      legend:{labels:{color:'#90e090',font:{size:12}}},
+      annotation:{
+        annotations:{
+          threshold:{
+            type:'line',
+            yMin:400,
+            yMax:400,
+            borderColor:'#ff4444',
+            borderWidth:2,
+            label: {
+              display: true,
+              content: 'Alert Threshold (400)',
+              position: 'end',
+              backgroundColor: 'rgba(255,68,68,0.8)',
+              color: '#fff',
+              font: { size: 10, weight: 'bold' }
+            }
+          }
+        }
+      }
+    },
+    scales:{
+      x:{grid:{color:'rgba(93,201,93,0.08)'},ticks:{color:'#90e090',font:{size:11}}},
+      y:{min:0,max:1000,grid:{color:'rgba(93,201,93,0.08)'},ticks:{color:'#90e090',font:{size:11}},
+         title:{display:true,text:'ADC Reading (0–1023)',color:'#5ec95e',font:{size:12}}}
+    }
+  }
+});
+
+// ── AQI MARKER ANIMATION ───────────────────────────────────────────
+let aqiDir=1, aqiPos=8;
+setInterval(()=>{
+  aqiPos+=aqiDir*0.4;
+  if(aqiPos>92||aqiPos<5) aqiDir*=-1;
+  const m=document.getElementById('aqi-marker');
+  if(m) m.style.left=aqiPos+'%';
+},100);
+</script>
+</body>
+</html>
